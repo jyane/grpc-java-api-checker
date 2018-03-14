@@ -103,6 +103,78 @@ public class InternalCheckerTest {
   }
 
   @Test
+  public void negativeSuperMethod() {
+    // add an annotated super class
+    compiler.addSourceLines("io/grpc/SuperClass.java",
+        "package io.grpc;",
+        "",
+        "import io.grpc.Internal;",
+        "",
+        "@Internal",
+        "public class SuperClass {",
+        "  public int foo() { return 42; }",
+        "}");
+    // add a not annotated sub class
+    compiler.addSourceLines("io/grpc/SubClass.java",
+        "package io.grpc;",
+        "",
+        "import io.grpc.Internal;",
+        "",
+        "public class SubClass extends SuperClass {",
+        "}");
+
+    compiler
+        .addSourceLines("example/Test.java",
+            "package example;",
+            "",
+            "import io.grpc.SubClass;",
+            "",
+            "public class Test {",
+            "  public static void main(String args[]) {",
+            "    SubClass subClass = new SubClass();",
+            "    subClass.foo();",
+            "  }",
+            "}")
+        .doTest();
+  }
+
+  @Test
+  public void negativeSuperVariable() {
+    // add an annotated super class
+    compiler.addSourceLines("io/grpc/SuperClass.java",
+        "package io.grpc;",
+        "",
+        "import io.grpc.Internal;",
+        "",
+        "@Internal",
+        "public class SuperClass {",
+        "  public int foo = 42;",
+        "}");
+    // add a not annotated sub class
+    compiler.addSourceLines("io/grpc/SubClass.java",
+        "package io.grpc;",
+        "",
+        "import io.grpc.Internal;",
+        "",
+        "public class SubClass extends SuperClass {",
+        "}");
+
+    compiler
+        .addSourceLines("example/Test.java",
+            "package example;",
+            "",
+            "import io.grpc.SubClass;",
+            "",
+            "public class Test {",
+            "  public static void main(String args[]) {",
+            "    SubClass subClass = new SubClass();",
+            "    System.out.println(subClass.foo);",
+            "  }",
+            "}")
+        .doTest();
+  }
+
+  @Test
   public void negative() {
     compiler
         .addSourceLines("example/Test.java",

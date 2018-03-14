@@ -21,23 +21,36 @@ import static com.google.errorprone.matchers.Description.NO_MATCH;
 
 import com.google.errorprone.VisitorState;
 import com.google.errorprone.bugpatterns.BugChecker;
+import com.google.errorprone.bugpatterns.BugChecker.CompilationUnitTreeMatcher;
 import com.google.errorprone.bugpatterns.BugChecker.IdentifierTreeMatcher;
 import com.google.errorprone.bugpatterns.BugChecker.MemberSelectTreeMatcher;
 import com.google.errorprone.matchers.Description;
 import com.google.errorprone.util.ASTHelpers;
+import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Type;
 import javax.lang.model.element.AnnotationMirror;
 
 abstract class AnnotationChecker extends BugChecker implements IdentifierTreeMatcher,
-    MemberSelectTreeMatcher {
+    MemberSelectTreeMatcher, CompilationUnitTreeMatcher {
 
   private final String annotationType;
+  private boolean shouldBeChecked;
 
   AnnotationChecker(String annotationType) {
     this.annotationType = checkNotNull(annotationType, "annotationType");
+  }
+
+  private boolean detectMemberSelectFromSubtype(MemberSelectTree tree, VisitorState state) {
+    Type receiverType = ASTHelpers.getReceiverType(tree);
+    Symbol owner = ASTHelpers.getSymbol(tree).owner;
+    if (owner == null) {
+      throw new IllegalStateException("MemberSelectTree has a owner, expected");
+    }
+    return !ASTHelpers.isSameType(receiverType, owner.type, state);
   }
 
   /**
@@ -64,8 +77,15 @@ abstract class AnnotationChecker extends BugChecker implements IdentifierTreeMat
     if (symbol == null) {
       return NO_MATCH;
     }
+    if (!shouldBeChecked) {
+      return NO_MATCH;
+    }
     AnnotationMirror annotation = findAnnotatedApi(symbol);
     if (annotation == null) {
+      return NO_MATCH;
+    }
+    if (tree instanceof MemberSelectTree &&
+        detectMemberSelectFromSubtype((MemberSelectTree) tree, state)) {
       return NO_MATCH;
     }
     return describe(tree, annotation);
@@ -80,6 +100,14 @@ abstract class AnnotationChecker extends BugChecker implements IdentifierTreeMat
 
   @Override
   public Description matchMemberSelect(MemberSelectTree tree, VisitorState state) {
+    return match(tree, state);
+  }
+
+  @Override
+  public Description matchCompilationUnit(CompilationUnitTree tree, VisitorState state) {
+    if (!"io.grpc".equals(tree.getPackageName().toString())) {
+      shouldBeChecked = true;
+    }
     return match(tree, state);
   }
 }
